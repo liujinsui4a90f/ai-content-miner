@@ -865,10 +865,10 @@ LOG_LEVEL = "INFO"
 # 8. 高级配置
 # ============================================================
 
-SCORE_TEMPERATURE = 0.2
+SCORE_TEMPERATURE = .0
 # 评分请求的输出上限。推理模型的思维链也计入 completion_tokens，
 # 800 会在 JSON 写到一半时被截断（finish_reason=length），因此留足余量。
-SCORE_MAX_TOKENS = int(os.environ.get("SCORE_MAX_TOKENS", "2000"))
+SCORE_MAX_TOKENS = int(os.environ.get("SCORE_MAX_TOKENS", "3000"))
 REPORT_TEMPERATURE = 0.25
 # Cloudflare 代理会在 120 秒后中止响应，研报请求需明显低于该上限。
 REPORT_MAX_ITEMS = int(os.environ.get("REPORT_MAX_ITEMS", "10"))

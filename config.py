@@ -880,11 +880,44 @@ REQUEST_INTERVAL = 2
 ENABLE_LINGZAO_ANALYSIS = True
 
 # ============================================================
+# 8.5 多平台统一运行
+# ============================================================
+
+# 一次运行覆盖的平台。youtube 默认不启用，因为它依赖外部 YTB_LLM 项目。
+MULTI_ENABLED_PLATFORMS = ["xhs", "zhihu", "github", "x", "reddit"]
+MULTI_INCLUDE_YOUTUBE = os.environ.get(
+    "MULTI_INCLUDE_YOUTUBE", "false"
+).strip().casefold() in {"1", "true", "yes", "on"}
+
+# 各平台进入 LLM 复评的候选上限（top-k），不是最终推送配额：
+# 最终推送哪些内容由复评分决定，因此各平台条数不必相等。
+MULTI_PLATFORM_QUOTA = {
+    "xhs": 3,
+    "zhihu": 3,
+    "github": 2,
+    "x": 3,
+    "reddit": 3,
+    "youtube": 2,
+}
+MULTI_TOTAL_ITEMS = int(os.environ.get("MULTI_TOTAL_ITEMS", "12"))
+# 只为日报前 N 条生成逐条研报，控制 LLM 与 COS 成本。
+MULTI_REPORT_TOP_N = int(os.environ.get("MULTI_REPORT_TOP_N", "5"))
+
+# 用现有 analyzer.scorer 的统一口径对跨平台候选复评，再决定最终日报。
+MULTI_LLM_RESCORE_ENABLED = os.environ.get(
+    "MULTI_LLM_RESCORE_ENABLED", "true"
+).strip().casefold() in {"1", "true", "yes", "on"}
+MULTI_LLM_CONCURRENCY = int(os.environ.get("MULTI_LLM_CONCURRENCY", "4"))
+
+MULTI_WECOM_MAX_BYTES = int(os.environ.get("MULTI_WECOM_MAX_BYTES", "4096"))
+MULTI_DIGEST_DIR = os.path.join(DATA_DIR, "digests")
+
+# ============================================================
 # 9. 路径自动创建
 # ============================================================
 
 def init_directories():
-    dirs = [DATA_DIR, REPORT_DIR, LOG_DIR, ARTICLES_DIR]
+    dirs = [DATA_DIR, REPORT_DIR, LOG_DIR, ARTICLES_DIR, MULTI_DIGEST_DIR]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
 

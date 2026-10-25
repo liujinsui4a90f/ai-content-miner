@@ -299,6 +299,45 @@ def _run_github_filters(articles: Sequence[Dict]) -> Tuple[List[Dict], int]:
     return passed_items, len(filtered["dropped"])
 
 
+def run_generic_filters(articles: Sequence[Dict]) -> Tuple[List[Dict], int]:
+    """对文章逐篇执行四层筛选，返回通过项与淘汰数。
+
+    单平台入口与多平台编排共用本函数，避免两处实现产生分歧。
+    """
+    print("\n🧠 [3/6] 执行四层筛选（规则 → 语义去重 → 评论区 → 博主画像）...")
+    passed_items: List[Dict] = []
+    filtered_count = 0
+    for idx, article in enumerate(articles, start=1):
+        result = multi_stage_filter(
+            article,
+            existing_articles=None,
+            enable_semantic=True,
+            enable_comment=True,
+            enable_author_profile=True,
+        )
+        title = article.get("title", "无标题")[:25]
+        if not result.passed:
+            filtered_count += 1
+            print(
+                f"   ⏭️ 淘汰 [{idx}/{len(articles)}] {title} → "
+                f"{result.rule_reason or result.semantic_reason or result.comment_reason or result.author_reason}"
+            )
+            continue
+        passed_items.append(
+            {
+                "article": article,
+                "total_score": result.total_score(),
+                "filter_result": result.to_dict(),
+                "blogger_weight": 1.0,
+            }
+        )
+        print(
+            f"   ✅ 通过 [{idx}/{len(articles)}] {title} "
+            f"→ 综合得分 {result.total_score():.2f}"
+        )
+    return passed_items, filtered_count
+
+
 def run_workflow(bridge: CollectorBridge) -> int:
     """运行已通过配置检查的完整工作流，并返回进程退出码。"""
     if getattr(bridge, "platform", "") == "x":
@@ -362,37 +401,7 @@ def run_workflow(bridge: CollectorBridge) -> int:
             print(f"   ❌ GitHub 筛选失败: {type(exc).__name__}: {exc}")
             return EXIT_UNEXPECTED
     else:
-        print("\n🧠 [3/6] 执行四层筛选（规则 → 语义去重 → 评论区 → 博主画像）...")
-        passed_items = []
-        filtered_count = 0
-        for idx, article in enumerate(articles, start=1):
-            result = multi_stage_filter(
-                article,
-                existing_articles=None,
-                enable_semantic=True,
-                enable_comment=True,
-                enable_author_profile=True,
-            )
-            title = article.get("title", "无标题")[:25]
-            if not result.passed:
-                filtered_count += 1
-                print(
-                    f"   ⏭️ 淘汰 [{idx}/{len(articles)}] {title} → "
-                    f"{result.rule_reason or result.semantic_reason or result.comment_reason or result.author_reason}"
-                )
-                continue
-            passed_items.append(
-                {
-                    "article": article,
-                    "total_score": result.total_score(),
-                    "filter_result": result.to_dict(),
-                    "blogger_weight": 1.0,
-                }
-            )
-            print(
-                f"   ✅ 通过 [{idx}/{len(articles)}] {title} "
-                f"→ 综合得分 {result.total_score():.2f}"
-            )
+        passed_items, filtered_count = run_generic_filters(articles)
 
     print(f"   ✅ 筛选完成：通过 {len(passed_items)} 篇，淘汰 {filtered_count} 篇")
     # ----- 后续：RAL（禁用） + 生成报告 + 推送 -----

@@ -1,6 +1,6 @@
 """twscrape 关键词搜索桥接器。
 
-当前实现直接对齐 PyPI ``twscrape==0.19.2`` 的异步接口：
+当前实现直接对齐 PyPI ``twscrape==0.20.1`` 的异步接口：
 ``API(pool=...)``、``AccountsPool.add_account_cookies`` 与 ``API.search``。
 twscrape 使用 X 的非公开 GraphQL 接口，运行需要只保存在本机的浏览器 Cookie。
 """
@@ -97,7 +97,7 @@ class TwscrapeBridge:
             config, "TWSCRAPE_ACCOUNT_WAIT_SECONDS", 10
         )
         self.expected_version = str(
-            getattr(config, "TWSCRAPE_EXPECTED_VERSION", "0.19.2")
+            getattr(config, "TWSCRAPE_EXPECTED_VERSION", "0.20.1")
         )
         self.db_file = _resolve_project_path(config.TWSCRAPE_DB_FILE)
         self.state_file = _resolve_project_path(config.TWSCRAPE_STATE_FILE)
@@ -120,7 +120,7 @@ class TwscrapeBridge:
             errors.append("SEARCH_KEYWORDS 必须至少包含一个非空关键词")
         if sys.version_info < MINIMUM_PYTHON:
             errors.append(
-                "twscrape 0.19.2 需要 Python >=3.10；"
+                "twscrape 0.20.1 需要 Python >=3.10；"
                 f"当前为 {sys.version_info.major}.{sys.version_info.minor}"
             )
         if not isinstance(self.per_query_limit, int) or self.per_query_limit <= 0:

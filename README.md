@@ -73,7 +73,7 @@ uv pip install --python .venv/bin/python -r requirements.txt
 本项目与 MediaCrawler 使用相互独立的 Python 环境。本项目的
 `requirements.txt` 只安装内容处理和推送依赖；MediaCrawler 依赖由其
 `uv.lock` 管理，避免把两个项目的 Playwright、pandas 等版本混装。
-twscrape 属于本项目依赖，当前固定为 `0.19.2`；其会话数据库和浏览器 Cookie 只保存在
+twscrape 属于本项目依赖，当前固定为 `0.20.1`；其会话数据库和浏览器 Cookie 只保存在
 实际运行任务的电脑上。Reddit RSS 使用 Python 标准库解析 Atom，并复用已有的
 `requests`，不需要 OAuth、PRAW、登录 Cookie 或额外账号。
 
@@ -201,7 +201,7 @@ http://127.0.0.1:8000/reports/
 
 ### 可选：测试 X 关键词采集
 
-X 不经过 MediaCrawler。本分支使用 `twscrape==0.19.2` 的异步 `API.search()` 接口，
+X 不经过 MediaCrawler。本分支使用 `twscrape==0.20.1` 的异步 `API.search()` 接口，
 并把结果转换为项目已有的 JSONL 格式。2026-07-22 已使用一个专用账号完成一次最多
 3 条结果的真实只读烟雾测试，搜索、JSONL 写入和下游解析均成功。该功能仍处于实验阶段；
 一次验证成功不代表 X 非公开接口能够长期稳定。

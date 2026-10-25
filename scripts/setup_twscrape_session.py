@@ -33,7 +33,7 @@ def _cookie_string(auth_token: str, ct0: str) -> str:
 async def create_session(path: Path) -> None:
     if sys.version_info < (3, 10):
         raise RuntimeError(
-            "twscrape 0.19.2 需要 Python >=3.10；"
+            "twscrape 0.20.1 需要 Python >=3.10；"
             f"当前为 {sys.version_info.major}.{sys.version_info.minor}"
         )
     try:

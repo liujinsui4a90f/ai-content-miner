@@ -220,7 +220,11 @@ MEDIACRAWLER_COMMIT = "c9a111be73586bdf6fc44536f088e4db6ed86d64"
 # Python >= 3.11 且已安装 MediaCrawler 依赖的解释器路径。
 MEDIACRAWLER_PYTHON = ""
 MEDIACRAWLER_LOGIN_TYPE = "qrcode"
-MEDIACRAWLER_TIMEOUT_SECONDS = 900
+# 小红书单次搜索（60 个 query × 每页 20 条）经常超过 15 分钟，
+# 900 秒会在正常爬取中被判超时，因此默认放宽到 25 分钟。
+MEDIACRAWLER_TIMEOUT_SECONDS = int(
+    os.environ.get("MEDIACRAWLER_TIMEOUT_SECONDS", "1500")
+)
 
 # 爬取类型：search / detail / creator
 CRAWL_TYPE = "search"
@@ -229,8 +233,8 @@ CRAWL_TYPE = "search"
 # 4.3 twscrape（X，实验接口）
 # ============================================================
 
-# 本项目直接对齐 PyPI twscrape 0.19.2 的异步 API。
-TWSCRAPE_EXPECTED_VERSION = "0.19.2"
+# 本项目直接对齐 PyPI twscrape 0.20.1 的异步 API。
+TWSCRAPE_EXPECTED_VERSION = "0.20.1"
 TWSCRAPE_SEARCH_PRODUCT = "Top"
 TWSCRAPE_RESULTS_PER_QUERY = 50
 TWSCRAPE_TIMEOUT_SECONDS = 120

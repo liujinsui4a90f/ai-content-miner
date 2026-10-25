@@ -50,7 +50,9 @@ class MediaCrawlerBridge:
         )
         self.login_type = getattr(config, "MEDIACRAWLER_LOGIN_TYPE", "qrcode")
         self.expected_commit = getattr(config, "MEDIACRAWLER_COMMIT", "")
-        self.timeout = getattr(config, "MEDIACRAWLER_TIMEOUT_SECONDS", 900)
+        self.timeout = getattr(
+            config, "MEDIACRAWLER_TIMEOUT_SECONDS", 1500
+        )
         self.target_data_dir = _resolve_project_path(config.DATA_DIR)
         self.python_executable = getattr(config, "MEDIACRAWLER_PYTHON", "").strip()
         self._command_runner = command_runner

@@ -152,9 +152,12 @@ class RedditRssBridge:
         requester: Optional[Callable[..., object]] = None,
         now_provider: Optional[Callable[[], datetime]] = None,
         sleeper: Optional[Callable[[float], None]] = None,
+        platform: Optional[str] = None,
     ) -> None:
         self.platform = "reddit"
-        self.configured_platform = str(config.CRAWL_PLATFORM).strip().casefold()
+        self.configured_platform = str(
+            platform or config.CRAWL_PLATFORM
+        ).strip().casefold()
         configured_keywords = getattr(
             config,
             "REDDIT_RSS_KEYWORDS",
@@ -205,7 +208,7 @@ class RedditRssBridge:
         errors: List[str] = []
         if self.configured_platform != "reddit":
             errors.append(
-                f"CRAWL_PLATFORM={config.CRAWL_PLATFORM!r} 不能由 Reddit RSS "
+                f"CRAWL_PLATFORM={self.configured_platform!r} 不能由 Reddit RSS "
                 "采集器处理；请使用 reddit"
             )
         if any(not keyword for keyword in self.keywords):

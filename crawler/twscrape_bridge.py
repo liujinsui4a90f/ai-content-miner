@@ -82,9 +82,12 @@ class TwscrapeBridge:
         self,
         api_factory: Optional[Callable[..., object]] = None,
         now_provider: Optional[Callable[[], datetime]] = None,
+        platform: Optional[str] = None,
     ) -> None:
         self.platform = "x"
-        self.configured_platform = str(config.CRAWL_PLATFORM).strip().lower()
+        self.configured_platform = str(
+            platform or config.CRAWL_PLATFORM
+        ).strip().lower()
         self.keywords = [str(keyword).strip() for keyword in config.SEARCH_KEYWORDS]
         self.per_query_limit = getattr(config, "TWSCRAPE_RESULTS_PER_QUERY", 20)
         self.product = str(getattr(config, "TWSCRAPE_SEARCH_PRODUCT", "Latest"))
@@ -110,7 +113,7 @@ class TwscrapeBridge:
 
         if self.configured_platform not in SUPPORTED_PLATFORMS:
             errors.append(
-                f"CRAWL_PLATFORM={config.CRAWL_PLATFORM!r} 不能由 twscrape 处理；"
+                f"CRAWL_PLATFORM={self.configured_platform!r} 不能由 twscrape 处理；"
                 "请使用 x"
             )
         if not self.keywords or any(not keyword for keyword in self.keywords):

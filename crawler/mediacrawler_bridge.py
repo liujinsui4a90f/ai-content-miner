@@ -37,9 +37,11 @@ class MediaCrawlerBridge:
     def __init__(
         self,
         command_runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+        platform: Optional[str] = None,
     ) -> None:
         self.base_path = _resolve_project_path(config.MEDIACRAWLER_PATH)
-        self.platform = self._platform_mapping(config.CRAWL_PLATFORM)
+        self.configured_platform = str(platform or config.CRAWL_PLATFORM).strip()
+        self.platform = self._platform_mapping(self.configured_platform)
         self.crawl_type = config.CRAWL_TYPE
         self.search_specs = self._build_search_specs()
         self.keywords = [spec["query"] for spec in self.search_specs]
@@ -59,7 +61,7 @@ class MediaCrawlerBridge:
 
         if self.platform not in SUPPORTED_PLATFORMS:
             errors.append(
-                f"CRAWL_PLATFORM={config.CRAWL_PLATFORM!r} 不受支持；"
+                f"CRAWL_PLATFORM={self.configured_platform!r} 不受支持；"
                 "当前仅支持 xhs、zhihu"
             )
         if self.crawl_type not in SUPPORTED_CRAWL_TYPES:

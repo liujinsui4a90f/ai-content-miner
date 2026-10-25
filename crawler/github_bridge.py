@@ -43,10 +43,11 @@ class GithubBridge:
         self,
         session: Optional[object] = None,
         now_provider: Optional[Callable[[], datetime]] = None,
+        platform: Optional[str] = None,
     ) -> None:
         self.platform = "github"
         self.configured_platform = str(
-            getattr(config, "CRAWL_PLATFORM", "")
+            platform or getattr(config, "CRAWL_PLATFORM", "")
         ).strip().lower()
         self.token = str(
             os.environ.get("GITHUB_TOKEN", getattr(config, "GITHUB_TOKEN", ""))
@@ -100,7 +101,7 @@ class GithubBridge:
         errors: List[str] = []
         if self.configured_platform not in SUPPORTED_PLATFORMS:
             errors.append(
-                f"CRAWL_PLATFORM={config.CRAWL_PLATFORM!r} 不能由 GithubBridge 处理；"
+                f"CRAWL_PLATFORM={self.configured_platform!r} 不能由 GithubBridge 处理；"
                 "请使用 github"
             )
         if not self.token or self.token.lower() in {

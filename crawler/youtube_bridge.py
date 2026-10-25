@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import config
 from crawler.base import CrawlRunResult
@@ -20,9 +20,11 @@ REQUIRED_YTB_SCRIPTS = (
 class YoutubeBridge:
     """Validate the external YTB_LLM project used by the YouTube workflow."""
 
-    def __init__(self) -> None:
+    def __init__(self, platform: Optional[str] = None) -> None:
         self.platform = "youtube"
-        self.configured_platform = str(config.CRAWL_PLATFORM).strip().casefold()
+        self.configured_platform = str(
+            platform or config.CRAWL_PLATFORM
+        ).strip().casefold()
         self.ytb_llm_path = Path(config.YOUTUBE_YTB_LLM_PATH).expanduser()
         self.python = str(config.YOUTUBE_PYTHON or "").strip()
 
@@ -30,7 +32,7 @@ class YoutubeBridge:
         errors: List[str] = []
         if self.configured_platform != "youtube":
             errors.append(
-                f"CRAWL_PLATFORM={config.CRAWL_PLATFORM!r} cannot be handled "
+                f"CRAWL_PLATFORM={self.configured_platform!r} cannot be handled "
                 "by the YouTube workflow; use youtube"
             )
         if not self.python:

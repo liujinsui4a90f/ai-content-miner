@@ -38,6 +38,12 @@ from utils.reddit_result_store import (
     append_reddit_results,
     build_reddit_result,
 )
+from workflows.outcome import (
+    STATUS_EMPTY,
+    STATUS_FAILED,
+    STATUS_OK,
+    PlatformOutcome,
+)
 
 
 EXIT_OK = 0
@@ -126,17 +132,19 @@ def _print_filter_results(filtered: Dict[str, List[Dict]]) -> None:
         )
 
 
-def run_reddit_workflow(
+def build_reddit_digest(
     bridge: CollectorBridge,
     embedding_client: Optional[object] = None,
     enrichment_client: Optional[object] = None,
-) -> int:
-    """运行 Reddit 专用流程，不调用逐条研报或通用通知模块。"""
+) -> PlatformOutcome:
+    """采集、筛选、摘要、存储并渲染 Reddit，不做推送与状态确认。"""
     print("\n[Reddit 1/7] 启动数据采集")
     crawl_result: CrawlRunResult = bridge.run()
     if not crawl_result.success:
         print(f"Reddit 采集失败：{crawl_result.error}")
-        return EXIT_CRAWLER
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_CRAWLER, error=crawl_result.error
+        )
 
     print("\n[Reddit 2/7] 加载本次运行数据")
     try:
@@ -147,10 +155,12 @@ def run_reddit_workflow(
         )
     except ValueError as exc:
         print(f"Reddit 数据加载失败：{exc}")
-        return EXIT_UNEXPECTED
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_UNEXPECTED, error=str(exc)
+        )
     if not items:
         print("本次运行没有可处理的 Reddit 内容")
-        return EXIT_NO_DATA
+        return PlatformOutcome("reddit", STATUS_EMPTY, EXIT_NO_DATA)
 
     print("\n[Reddit 3/7] 执行规则、Embedding、质量评分和排序")
     try:
@@ -160,10 +170,14 @@ def run_reddit_workflow(
         )
     except RedditEmbeddingError as exc:
         print(f"Reddit Embedding 筛选失败：{exc}")
-        return EXIT_EMBEDDING
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_EMBEDDING, error=str(exc)
+        )
     except ValueError as exc:
         print(f"Reddit 筛选配置无效：{exc}")
-        return EXIT_CONFIG
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_CONFIG, error=str(exc)
+        )
     _print_filter_results(filtered)
     print(
         f"Reddit 筛选完成：保留 {len(filtered['passed'])}，"
@@ -178,7 +192,9 @@ def run_reddit_workflow(
         )
     except RedditEnrichmentConfigError as exc:
         print(f"Reddit 摘要配置无效：{exc}")
-        return EXIT_CONFIG
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_CONFIG, error=str(exc)
+        )
 
     processed_at = datetime.now(timezone.utc)
     try:
@@ -188,7 +204,9 @@ def run_reddit_workflow(
         ]
     except RedditResultStoreError as exc:
         print(str(exc))
-        return EXIT_STORE
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_STORE, error=str(exc)
+        )
     kept_ids = {
         f"reddit:{str(item.get('raw', {}).get('id', '')).strip()}"
         for item in kept_items
@@ -203,7 +221,9 @@ def run_reddit_workflow(
         result_path = append_reddit_results(records)
     except RedditResultStoreError as exc:
         print(str(exc))
-        return EXIT_STORE
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_STORE, error=str(exc)
+        )
     print(f"Reddit 结构化结果已写入 {result_path}")
 
     print("\n[Reddit 6/7] 更新聚合页面")
@@ -211,8 +231,38 @@ def run_reddit_workflow(
         report_path = render_reddit_feed()
     except (RedditFeedRenderError, RedditResultStoreError) as exc:
         print(str(exc))
-        return EXIT_RENDER
+        return PlatformOutcome(
+            "reddit", STATUS_FAILED, EXIT_RENDER, error=str(exc)
+        )
     print(f"Reddit 聚合页面已更新 {report_path}")
+
+    return PlatformOutcome(
+        platform="reddit",
+        status=STATUS_OK,
+        crawled=len(items),
+        passed=len(kept_records),
+        items=kept_records,
+        result_path=result_path,
+        report_path=report_path,
+        meta={"dropped": len(filtered["dropped"])},
+    )
+
+
+def run_reddit_workflow(
+    bridge: CollectorBridge,
+    embedding_client: Optional[object] = None,
+    enrichment_client: Optional[object] = None,
+) -> int:
+    """运行 Reddit 专用流程，不调用逐条研报或通用通知模块。"""
+    outcome = build_reddit_digest(
+        bridge,
+        embedding_client=embedding_client,
+        enrichment_client=enrichment_client,
+    )
+    if not outcome.ok:
+        return outcome.exit_code
+
+    kept_records = outcome.items
 
     state_error = bridge.acknowledge()
     if state_error:
@@ -227,7 +277,7 @@ def run_reddit_workflow(
         print("Reddit 企业微信通知未启用")
 
     print(
-        f"Reddit 工作流完成：候选 {len(items)}，"
-        f"保留 {len(kept_records)}，删除 {len(filtered['dropped'])}"
+        f"Reddit 工作流完成：候选 {outcome.crawled}，"
+        f"保留 {len(kept_records)}，删除 {outcome.meta.get('dropped', 0)}"
     )
     return EXIT_OK

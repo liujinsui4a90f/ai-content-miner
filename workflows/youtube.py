@@ -19,6 +19,12 @@ from utils.youtube_result_store import (
     YoutubeResultStoreError,
     append_youtube_results,
 )
+from workflows.outcome import (
+    STATUS_EMPTY,
+    STATUS_FAILED,
+    STATUS_OK,
+    PlatformOutcome,
+)
 
 
 EXIT_OK = 0
@@ -98,14 +104,18 @@ def load_youtube_digest(path: Path) -> dict:
     return digest
 
 
-def run_youtube_workflow(bridge: CollectorBridge) -> int:
-    """Run YouTube as a structured feed, not the legacy article-report path."""
+def build_youtube_digest(
+    bridge: CollectorBridge,
+) -> PlatformOutcome:
+    """运行外部 YTB_LLM 流程、写入结构化结果并渲染页面，不做状态确认。"""
     print("\n[YouTube 1/4] Run YTB_LLM pipeline")
     try:
         digest_path = run_ytb_pipeline()
     except (OSError, RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"YouTube/YTB_LLM pipeline failed: {exc}")
-        return EXIT_CRAWLER
+        return PlatformOutcome(
+            "youtube", STATUS_FAILED, EXIT_CRAWLER, error=str(exc)
+        )
     print(f"YouTube digest: {digest_path}")
 
     print("\n[YouTube 2/4] Map digest picks to structured records")
@@ -113,10 +123,12 @@ def run_youtube_workflow(bridge: CollectorBridge) -> int:
         records = youtube_records_from_digest(load_youtube_digest(digest_path))
     except YoutubeFeedError as exc:
         print(str(exc))
-        return EXIT_UNEXPECTED
+        return PlatformOutcome(
+            "youtube", STATUS_FAILED, EXIT_UNEXPECTED, error=str(exc)
+        )
     if not records:
         print("YTB_LLM digest contains no selected YouTube records")
-        return EXIT_NO_DATA
+        return PlatformOutcome("youtube", STATUS_EMPTY, EXIT_NO_DATA)
     print(f"YouTube structured records: {len(records)}")
 
     print("\n[YouTube 3/4] Write structured results")
@@ -124,7 +136,9 @@ def run_youtube_workflow(bridge: CollectorBridge) -> int:
         result_path = append_youtube_results(records)
     except YoutubeResultStoreError as exc:
         print(str(exc))
-        return EXIT_STORE
+        return PlatformOutcome(
+            "youtube", STATUS_FAILED, EXIT_STORE, error=str(exc)
+        )
     print(f"YouTube structured results written to {result_path}")
 
     print("\n[YouTube 4/4] Update feed page")
@@ -132,13 +146,33 @@ def run_youtube_workflow(bridge: CollectorBridge) -> int:
         report_path = render_youtube_feed()
     except (YoutubeFeedError, YoutubeResultStoreError) as exc:
         print(str(exc))
-        return EXIT_RENDER
+        return PlatformOutcome(
+            "youtube", STATUS_FAILED, EXIT_RENDER, error=str(exc)
+        )
     print(f"YouTube feed page updated: {report_path}")
+
+    return PlatformOutcome(
+        platform="youtube",
+        status=STATUS_OK,
+        crawled=len(records),
+        passed=len(records),
+        items=records,
+        result_path=result_path,
+        report_path=report_path,
+        meta={"digest_path": str(digest_path)},
+    )
+
+
+def run_youtube_workflow(bridge: CollectorBridge) -> int:
+    """Run YouTube as a structured feed, not the legacy article-report path."""
+    outcome = build_youtube_digest(bridge)
+    if not outcome.ok:
+        return outcome.exit_code
 
     state_error = bridge.acknowledge()
     if state_error:
         print(f"YouTube state save failed: {state_error}")
         return EXIT_UNEXPECTED
 
-    print(f"YouTube workflow complete: {len(records)} selected records")
+    print(f"YouTube workflow complete: {outcome.item_count} selected records")
     return EXIT_OK

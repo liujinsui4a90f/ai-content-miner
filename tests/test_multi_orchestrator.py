@@ -9,6 +9,8 @@ from pipeline import orchestrator
 from pipeline.types import DigestItem
 from workflows.outcome import STATUS_FAILED, STATUS_OK, PlatformOutcome
 
+import config
+
 
 def report_item(title, score):
     return {
@@ -125,7 +127,9 @@ class OrchestratorTest(unittest.TestCase):
         ]
         summary = self._run(dry_run=True)
         xhs = [item for item in summary.candidates if item.platform == "xhs"]
-        self.assertEqual(len(xhs), 3)  # MULTI_PLATFORM_QUOTA["xhs"]
+        # 配额是可配置的，用例不写死具体数字
+        expected = min(6, int(config.MULTI_PLATFORM_QUOTA.get("xhs", 0)))
+        self.assertEqual(len(xhs), expected)
 
     def test_full_run_pushes_once_then_acknowledges(self):
         events = []
@@ -185,6 +189,44 @@ class OrchestratorTest(unittest.TestCase):
 
         self.assertEqual(summary.exit_code, orchestrator.EXIT_CRAWLER)
         send.assert_not_called()
+
+    def test_no_push_still_reports_partial_failure(self):
+        self.bridges["reddit"].fail = True
+        with patch.object(orchestrator, "send_digest") as send:
+            summary = self._run(no_push=True, llm_rescore=False)
+
+        self.assertEqual(summary.exit_code, orchestrator.EXIT_PARTIAL)
+        send.assert_not_called()
+
+    def test_unjudged_candidates_are_excluded_by_default(self):
+        def fake_judge(items, enabled=None, **kwargs):
+            items = list(items)
+            for item in items[:-1]:
+                item.judge_score = 8.0
+            return len(items) - 1
+
+        with patch.object(
+            orchestrator.ranking, "judge_items", side_effect=fake_judge
+        ), patch.object(orchestrator, "send_digest", return_value=True):
+            summary = self._run()
+
+        self.assertEqual(len(summary.selected), len(summary.candidates) - 1)
+        self.assertTrue(all(item.judge_score is not None for item in summary.selected))
+
+    def test_include_unjudged_appends_them_after_judged(self):
+        def fake_judge(items, enabled=None, **kwargs):
+            items = list(items)
+            for item in items[:-1]:
+                item.judge_score = 8.0
+            return len(items) - 1
+
+        with patch.object(
+            orchestrator.ranking, "judge_items", side_effect=fake_judge
+        ), patch.object(orchestrator, "send_digest", return_value=True):
+            summary = self._run(include_unjudged=True)
+
+        self.assertEqual(len(summary.selected), len(summary.candidates))
+        self.assertIsNone(summary.selected[-1].judge_score)
 
 
 class RankingTest(unittest.TestCase):

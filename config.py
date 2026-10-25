@@ -866,6 +866,9 @@ LOG_LEVEL = "INFO"
 # ============================================================
 
 SCORE_TEMPERATURE = 0.2
+# 评分请求的输出上限。推理模型的思维链也计入 completion_tokens，
+# 800 会在 JSON 写到一半时被截断（finish_reason=length），因此留足余量。
+SCORE_MAX_TOKENS = int(os.environ.get("SCORE_MAX_TOKENS", "2000"))
 REPORT_TEMPERATURE = 0.25
 # Cloudflare 代理会在 120 秒后中止响应，研报请求需明显低于该上限。
 REPORT_MAX_ITEMS = int(os.environ.get("REPORT_MAX_ITEMS", "10"))
@@ -896,11 +899,11 @@ MULTI_INCLUDE_YOUTUBE = os.environ.get(
 # 各平台进入 LLM 复评的候选上限（top-k），不是最终推送配额：
 # 最终推送哪些内容由复评分决定，因此各平台条数不必相等。
 MULTI_PLATFORM_QUOTA = {
-    "xhs": 3,
-    "zhihu": 3,
-    "github": 2,
-    "x": 3,
-    "reddit": 3,
+    "xhs": 5,
+    "zhihu": 5,
+    "github": 5,
+    "x": 5,
+    "reddit": 5,
     "youtube": 2,
 }
 MULTI_TOTAL_ITEMS = int(os.environ.get("MULTI_TOTAL_ITEMS", "12"))

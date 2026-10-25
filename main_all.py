@@ -21,6 +21,9 @@
 
     # 跳过 LLM 复评，按平台内名次交错（离线可用）
     python main_all.py --no-llm
+
+    # 把复评失败的候选也纳入日报（默认排除）
+    python main_all.py --include-unjudged
 """
 
 from __future__ import annotations
@@ -94,6 +97,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="跳过 LLM 复评，按平台内名次交错选取",
     )
+    parser.add_argument(
+        "--include-unjudged",
+        action="store_true",
+        help="把复评失败的候选也纳入日报（默认排除，避免分数缺失影响排序）",
+    )
     return parser
 
 
@@ -125,6 +133,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             no_push=args.no_push,
             total=args.total,
             llm_rescore=False if args.no_llm else None,
+            include_unjudged=args.include_unjudged,
         )
     except KeyboardInterrupt:
         print("\n⚠️ 用户中断")

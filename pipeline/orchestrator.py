@@ -167,6 +167,7 @@ def run_all(
     no_push: bool = False,
     total: Optional[int] = None,
     llm_rescore: Optional[bool] = None,
+    include_unjudged: bool = False,
     bridge_factory: Optional[object] = None,
 ) -> RunSummary:
     """执行一次多平台运行，返回可审计的摘要。"""
@@ -234,13 +235,29 @@ def run_all(
 
     if dry_run:
         summary.selected = summary.candidates
+        _apply_partial_status(summary)
         _write_summary(summary)
         print("\n🧪 dry-run：只展示候选池，不调用 LLM、不生成研报、不推送")
         _print_candidates(summary.candidates)
         return summary
 
-    ranking.judge_items(summary.candidates, enabled=llm_rescore)
-    summary.selected = ranking.select_final(summary.candidates, total=total)
+    judged_count = ranking.judge_items(summary.candidates, enabled=llm_rescore)
+    unjudged = [
+        item for item in summary.candidates if item.judge_score is None
+    ]
+    if judged_count and unjudged:
+        preview = "；".join(item.title[:20] for item in unjudged[:3])
+        print(
+            f"   ⚠️ {len(unjudged)} 条候选复评失败，默认排除：{preview}"
+        )
+    elif not judged_count and unjudged:
+        print("   ⚠️ 全部候选复评失败，回退到平台轮转排序")
+
+    summary.selected = ranking.select_final(
+        summary.candidates,
+        total=total,
+        include_unjudged=include_unjudged,
+    )
     print(f"\n🏆 最终日报：{len(summary.selected)} 条")
     _print_candidates(summary.selected)
 
@@ -260,6 +277,7 @@ def run_all(
 
     if no_push:
         print("📴 --no-push：跳过企业微信推送")
+        _apply_partial_status(summary)
         _write_summary(summary)
         return summary
 
@@ -288,22 +306,34 @@ def run_all(
         _write_summary(summary)
         return summary
 
+    _apply_partial_status(summary)
+    _write_summary(summary)
+    return summary
+
+
+def _apply_partial_status(summary: RunSummary) -> None:
+    """按平台状态写退出码：有失败或跳过即部分成功。
+
+    ``--no-push`` 和 ``--dry-run`` 也必须走这里，否则"平台全挂但退出码 0"
+    会让调度器误判为成功。
+    """
     failed = [
         outcome
         for outcome in summary.outcomes
         if outcome.status in {STATUS_FAILED, STATUS_SKIPPED}
     ]
-    summary.exit_code = EXIT_PARTIAL if failed else EXIT_OK
-    if failed:
-        print(
-            "⚠️ 部分平台未完成："
-            + "，".join(
-                f"{platform_label(outcome.platform)}({outcome.status})"
-                for outcome in failed
-            )
+    if not failed:
+        summary.exit_code = EXIT_OK
+        return
+
+    summary.exit_code = EXIT_PARTIAL
+    print(
+        "⚠️ 部分平台未完成："
+        + "，".join(
+            f"{platform_label(outcome.platform)}({outcome.status})"
+            for outcome in failed
         )
-    _write_summary(summary)
-    return summary
+    )
 
 
 def _print_candidates(items: Sequence[DigestItem]) -> None:

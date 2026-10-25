@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from numbers import Real
-from typing import List, Optional, Sequence, Union
+from typing import Callable, List, Optional, Sequence, TypeVar, Union
 
 import config
+
+_T = TypeVar("_T")
 
 
 class EmbeddingError(RuntimeError):
@@ -122,6 +125,28 @@ def _normalize_texts(texts: Union[str, Sequence[str]]) -> List[str]:
     return normalized
 
 
+def _call_with_retry(call: Callable[[], _T], attempts: int) -> _T:
+    """调用外部接口并在失败时重试，最多重试 attempts 次。"""
+    total = max(0, int(attempts))
+    last: Optional[Exception] = None
+    for attempt in range(total + 1):
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001 - 统一转换为 EmbeddingError
+            last = exc
+            if attempt >= total:
+                break
+            delay = min(2.0 ** attempt, 8.0)
+            print(
+                f"   ⚠️ Embedding 请求失败（第 {attempt + 1}/{total + 1} 次尝试）："
+                f"{_error_message(exc)}；{delay:.0f} 秒后重试"
+            )
+            time.sleep(delay)
+    raise EmbeddingError(
+        f"Embedding API 请求失败：{_error_message(last)}"
+    ) from last
+
+
 def encode(
     texts: Union[str, Sequence[str]],
     *,
@@ -145,15 +170,13 @@ def encode(
     vectors: List[List[float]] = []
     for start in range(0, len(values), active_batch_size):
         batch = values[start : start + active_batch_size]
-        try:
-            response = active_client.embeddings.create(
+        response = _call_with_retry(
+            lambda: active_client.embeddings.create(
                 model=active_model,
                 input=batch,
-            )
-        except Exception as exc:
-            raise EmbeddingError(
-                f"Embedding API 请求失败：{_error_message(exc)}"
-            ) from exc
+            ),
+            attempts=int(getattr(config, "EMBEDDING_MAX_RETRIES", 0)),
+        )
 
         data = _field(response, "data")
         if not isinstance(data, list) or len(data) != len(batch):

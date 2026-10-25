@@ -128,8 +128,14 @@ def interleave(items: Iterable[DigestItem]) -> List[DigestItem]:
 def select_final(
     items: Iterable[DigestItem],
     total: Optional[int] = None,
+    include_unjudged: bool = False,
 ) -> List[DigestItem]:
-    """按复评分排序取最终推送集；未复评的排在后面。"""
+    """按复评分取最终日报。
+
+    默认**排除**复评失败的候选：它们的分数缺失，无法与已复评项公平比较，
+    强行垫底会把"评分失败"变成"质量排序"。只有全部候选都复评失败时，
+    才回退到平台轮转，避免产出空日报。
+    """
     limit = int(
         total if total is not None else getattr(config, "MULTI_TOTAL_ITEMS", 12)
     )
@@ -140,10 +146,14 @@ def select_final(
     judged.sort(
         key=lambda item: (-(item.judge_score or 0.0), item.rank_in_platform)
     )
-    if unjudged:
-        unjudged = interleave(unjudged)
 
-    ordered = judged + unjudged
+    if not judged:
+        ordered = interleave(unjudged)
+    elif include_unjudged:
+        ordered = judged + interleave(unjudged)
+    else:
+        ordered = judged
+
     return ordered[:limit] if limit > 0 else ordered
 
 

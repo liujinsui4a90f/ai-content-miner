@@ -5,12 +5,12 @@
 长内容（>=500字）：五维（相关性、创新性、可复现性、内容质量、社区热度）
 """
 import json
-import re
 import time
 from typing import Dict
 from openai import OpenAI
 
 import config
+from utils.json_extract import extract_json_object
 
 client = OpenAI(api_key=config.API_KEY, base_url=config.BASE_URL)
 
@@ -77,15 +77,13 @@ def score_and_classify(article: Dict, max_retries: int = None) -> Dict:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=config.SCORE_TEMPERATURE,
-                max_tokens=800
+                max_tokens=int(getattr(config, "SCORE_MAX_TOKENS", 2000)),
             )
 
             raw = response.choices[0].message.content.strip()
-            json_match = re.search(r'\{[\s\S]*\}', raw)
-            if not json_match:
-                raise ValueError("未找到 JSON")
-
-            result = json.loads(json_match.group())
+            # 只解析第一个完整对象：模型偶尔会把多个 JSON 拼接或加说明文字，
+            # 用贪婪正则抓取会触发 `Extra data`。
+            result = extract_json_object(raw)
             scores = result.get("scores", [0] * len(dimensions))
             if len(scores) < len(dimensions):
                 scores = scores + [0] * (len(dimensions) - len(scores))
